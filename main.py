@@ -205,8 +205,10 @@ def run_demo_queries(agent_executor):
         
         try:
             # Invoke the agent with the question
-            response = agent_executor.invoke({"messages": [("user", question)]})
-            #, ("system", "reply in french")
+            response = agent_executor.invoke({"messages": [("user", question), 
+                                                           ("user", "write a quanltative summary of the impact of the action based on company profiles")
+                                                           ]})
+            #, ("system", "If the user does not provide an index name ask them to provide one.")
             
             # Extract the final answer
             final_message = response["messages"][-1]
