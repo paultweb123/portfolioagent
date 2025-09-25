@@ -333,6 +333,7 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
     
     # Identify loss lots and calculate tracking error impact for each potential sale
     loss_lots_with_impact = []
+    
     for lot_index, lot in enumerate(tax_lots):
         if lot.is_loss():
             # Calculate potential shares to sell considering lot size
@@ -348,6 +349,7 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
                 
                 # Calculate tracking error impact
                 tracking_impact = calculate_tracking_error_impact(current_weights, new_weights, target_weights)
+                loss_per_tracking_unit = abs(shares_to_sell * lot.gain_loss_per_share) / (abs(tracking_impact) + 1e-8)
                 
                 loss_lots_with_impact.append({
                     'lot_index': lot_index,
@@ -356,7 +358,7 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
                     'proceeds': proceeds,
                     'realized_loss': shares_to_sell * lot.gain_loss_per_share,
                     'tracking_impact': tracking_impact,
-                    'loss_per_tracking_unit': abs(shares_to_sell * lot.gain_loss_per_share) / (abs(tracking_impact) + 1e-8)
+                    'loss_per_tracking_unit': loss_per_tracking_unit
                 })
     
     # Sort by loss efficiency (minimize tracking error per unit of loss harvested)
@@ -367,11 +369,30 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
     selected_sales = []
     current_sell_value = 0.0
     
-    # First, select optimal sales
+    # Select optimal sales with partial sale capability
     for lot_info in loss_lots_with_impact:
         if current_sell_value + lot_info['proceeds'] <= max_sell_value:
+            # Full sale fits within limit
             selected_sales.append(lot_info)
             current_sell_value += lot_info['proceeds']
+        elif current_sell_value < max_sell_value:
+            # Partial sale possible
+            remaining_sell_capacity = max_sell_value - current_sell_value
+            max_shares_by_value = remaining_sell_capacity / lot_info['lot'].current_price
+            
+            if max_shares_by_value >= lot_size:
+                # Calculate partial sale
+                partial_shares = int(max_shares_by_value // lot_size) * lot_size
+                partial_proceeds = partial_shares * lot_info['lot'].current_price
+                
+                # Create modified lot_info for partial sale
+                partial_lot_info = lot_info.copy()
+                partial_lot_info['shares_to_sell'] = partial_shares
+                partial_lot_info['proceeds'] = partial_proceeds
+                partial_lot_info['realized_loss'] = partial_shares * lot_info['lot'].gain_loss_per_share
+                
+                selected_sales.append(partial_lot_info)
+                current_sell_value += partial_proceeds
     
     # Create actions for all lots
     for lot_index, lot in enumerate(tax_lots):
