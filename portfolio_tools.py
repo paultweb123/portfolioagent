@@ -229,7 +229,7 @@ def get_prices(ticker: str) -> str:
     return f"💰 {validated_ticker} current price: ${price:,.2f}"
 
 @tool
-def rebalance_portfolio(holdings: Dict[str, float], index_name: str, lot_size: float) -> Dict[str, Any]:
+def rebalance_portfolio(holdings: Dict[str, float], index_name: str, lot_size: float = 1) -> Dict[str, Any]:
     """
     Rebalance a portfolio to match target index weights using pandas for efficient calculations.
     
@@ -314,11 +314,17 @@ def rebalance_portfolio(holdings: Dict[str, float], index_name: str, lot_size: f
         - Function returns structured data suitable for programmatic processing
     """
     try:
+        print('holdings:', holdings)
+        print('index_name:', index_name)
+        print('lot_size:', lot_size)
+        
         # Validate input parameters directly
         portfolio = validate_portfolio_holdings(holdings)
         validated_index_name = validate_index_name(index_name)
         validated_lot_size = float(lot_size)
         
+        
+
         if validated_lot_size <= 0:
             raise ValueError("lot_size must be greater than 0")
             

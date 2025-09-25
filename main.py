@@ -19,6 +19,8 @@ from langchain_core.callbacks import BaseCallbackHandler
 # Load environment variables from .env file
 load_dotenv()
 
+from langchain_anthropic import ChatAnthropic  # new package per deprecation notice
+
 class PromptDebugCallback(BaseCallbackHandler):
     """Custom callback to capture and print LLM prompts."""
     
@@ -123,12 +125,25 @@ def create_react_agent_demo():
     
     # Initialize the LLM with debug callback
     debug_callback = PromptDebugCallback()
-    llm = ChatOpenAI(
+    llm_openai = ChatOpenAI(
         model="gpt-3.5-turbo",
         temperature=0,
         callbacks=[debug_callback]
     )
-    
+
+
+    llm_anthropic = ChatAnthropic(
+        #model="claude-3-7-sonnet-20250219",                # Claude model to use
+        model = "claude-3-5-haiku-latest",                # Claude model to use
+        #model = "claude-sonnet-4-latest",
+        temperature=0,                   # deterministic output
+        max_retries=2,                   # retry transient errors
+        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY")  # correct named parameter
+    )
+
+
+    llm = llm_anthropic
+        
     # Create list of tools - include both demo tools and portfolio tools
     portfolio_tools = get_portfolio_tools()
     tools = [calculator, word_counter, temperature_converter] + portfolio_tools
@@ -176,7 +191,7 @@ def run_demo_queries(agent_executor):
 
     demo_questions = ['''Rebalance below portfolio to match index1
                       AAPL  100
-                      GOOG 20
+                      
                       
                       
                       ''']
