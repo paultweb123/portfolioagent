@@ -14,6 +14,7 @@ from langgraph.graph import StateGraph, END
 import os
 from dotenv import load_dotenv
 from portfolio_tools import get_portfolio_tools
+from portfolio_tools_pydantic import pydantic_rebalance_portfolio
 from langchain_core.callbacks import BaseCallbackHandler
 
 # Load environment variables from .env file
@@ -146,7 +147,7 @@ def create_react_agent_demo():
         
     # Create list of tools - include both demo tools and portfolio tools
     portfolio_tools = get_portfolio_tools()
-    tools = [calculator, word_counter, temperature_converter] + portfolio_tools
+    tools = [calculator, word_counter, temperature_converter] + [pydantic_rebalance_portfolio]
     
     # Create the ReAct agent using LangGraph's prebuilt function
     agent_executor = create_react_agent(llm, tools, debug = False)
@@ -205,6 +206,7 @@ def run_demo_queries(agent_executor):
         try:
             # Invoke the agent with the question
             response = agent_executor.invoke({"messages": [("user", question)]})
+            #, ("system", "reply in french")
             
             # Extract the final answer
             final_message = response["messages"][-1]
