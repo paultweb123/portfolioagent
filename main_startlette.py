@@ -94,7 +94,7 @@ def create_react_agent_instance():
     
     # Create list of tools
     portfolio_tools = get_portfolio_tools()
-    tools = [calculator, word_counter, temperature_converter] + [pydantic_rebalance_portfolio]
+    tools = [calculator, word_counter, temperature_converter] + portfolio_tools + [pydantic_rebalance_portfolio]
     
     # Create the ReAct agent
     agent_executor = create_react_agent(llm_anthropic, tools, debug=False)
