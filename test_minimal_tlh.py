@@ -113,7 +113,7 @@ class TestMinimalTLH(unittest.TestCase):
                 'ticker': 'TSLA',
                 'lot_index': 1,
                 'action': 'SELL',
-                'shares_to_sell': 46.0
+                'shares_to_sell': 5.0
             }
         ]
 
