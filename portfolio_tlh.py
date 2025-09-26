@@ -292,7 +292,8 @@ def _tax_loss_harvest_fifo(tax_lots: List[TaxLot],
 def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
                                    index_name: str,
                                    lot_size: float = 1.0,
-                                   max_sell_percentage: float = 100.0) -> TLHResult:
+                                   max_sell_percentage: float = 100.0,
+                                   verbose: bool = False) -> TLHResult:
     """
     Perform tax loss harvesting with index tracking error minimization.
     
@@ -301,6 +302,7 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
         index_name: Target index for tracking error minimization
         lot_size: Minimum trading lot size in shares
         max_sell_percentage: Maximum percentage of portfolio to sell
+        verbose: Enable detailed logging for debugging
         
     Returns:
         TLHResult object with harvesting analysis
@@ -323,6 +325,16 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
     total_portfolio_value = sum(lot.current_value for lot in tax_lots)
     max_sell_value = total_portfolio_value * (max_sell_percentage / 100.0)
     
+    if verbose:
+        print(f"\n🔍 INDEX-OPTIMIZED TLH DEBUG LOG")
+        print(f"=" * 50)
+        print(f"📊 Portfolio Overview:")
+        print(f"   Total Portfolio Value: ${total_portfolio_value:,.2f}")
+        print(f"   Max Sell Percentage: {max_sell_percentage}%")
+        print(f"   Max Sell Value: ${max_sell_value:,.2f}")
+        print(f"   Lot Size: {lot_size} shares")
+        print(f"   Target Index: {index_name.upper()}")
+    
     # Calculate current portfolio weights by ticker
     current_weights = {}
     for lot in tax_lots:
@@ -331,10 +343,34 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
         else:
             current_weights[lot.ticker] = lot.current_value / total_portfolio_value
     
+    if verbose:
+        print(f"\n📈 Current Portfolio Positions:")
+        for lot in tax_lots:
+            print(f"   {lot.ticker}: {lot.shares} shares @ ${lot.current_price:.2f} = ${lot.current_value:,.2f} ({current_weights.get(lot.ticker, 0):.1%})")
+            if lot.is_loss():
+                print(f"     🔴 LOSS: ${lot.unrealized_gain_loss:,.2f} (${lot.gain_loss_per_share:.2f}/share)")
+            else:
+                print(f"     🟢 GAIN: ${lot.unrealized_gain_loss:,.2f} (${lot.gain_loss_per_share:.2f}/share)")
+        
+        print(f"\n🎯 Target Index Weights ({index_name.upper()}):")
+        for ticker, weight in target_weights.items():
+            current_weight = current_weights.get(ticker, 0)
+            deviation = current_weight - weight
+            status = "🔴 UNDERWEIGHT" if deviation < -0.01 else "🔵 OVERWEIGHT" if deviation > 0.01 else "✅ ON TARGET"
+            print(f"   {ticker}: Target {weight:.1%}, Current {current_weight:.1%}, Deviation {deviation:+.1%} {status}")
+    
     # Identify loss lots and calculate tracking error impact for each potential sale
     loss_lots_with_impact = []
     
+    if verbose:
+        print(f"\n🔍 Analyzing Loss Lots:")
+    
     for lot_index, lot in enumerate(tax_lots):
+        if verbose:
+            print(f"\n   Lot {lot_index}: {lot.ticker}")
+            print(f"     Shares: {lot.shares}, Cost: ${lot.cost_basis:.2f}, Current: ${lot.current_price:.2f}")
+            print(f"     Loss: {lot.is_loss()}, Unrealized P&L: ${lot.unrealized_gain_loss:.2f}")
+        
         if lot.is_loss():
             # Calculate potential shares to sell considering lot size
             max_shares_available = lot.shares
@@ -344,12 +380,23 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
                 # Calculate new weights if we sell these shares
                 proceeds = shares_to_sell * lot.current_price
                 new_weights = current_weights.copy()
-                new_weight = (current_weights.get(lot.ticker, 0) * total_portfolio_value - proceeds) / total_portfolio_value
+                old_weight = current_weights.get(lot.ticker, 0)
+                new_weight = (old_weight * total_portfolio_value - proceeds) / total_portfolio_value
                 new_weights[lot.ticker] = max(0, new_weight)
                 
                 # Calculate tracking error impact
                 tracking_impact = calculate_tracking_error_impact(current_weights, new_weights, target_weights)
                 loss_per_tracking_unit = abs(shares_to_sell * lot.gain_loss_per_share) / (abs(tracking_impact) + 1e-8)
+                
+                if verbose:
+                    print(f"     ✅ ELIGIBLE FOR SALE:")
+                    print(f"       Max Shares Available: {max_shares_available}")
+                    print(f"       Shares to Sell (lot-adjusted): {shares_to_sell}")
+                    print(f"       Proceeds: ${proceeds:,.2f}")
+                    print(f"       Realized Loss: ${shares_to_sell * lot.gain_loss_per_share:,.2f}")
+                    print(f"       Weight Change: {old_weight:.4f} → {new_weight:.4f} ({new_weight-old_weight:+.4f})")
+                    print(f"       Tracking Impact: {tracking_impact:+.6f} ({'IMPROVES' if tracking_impact < 0 else 'WORSENS'} tracking)")
+                    print(f"       Loss per Tracking Unit: ${loss_per_tracking_unit:,.2f}")
                 
                 loss_lots_with_impact.append({
                     'lot_index': lot_index,
@@ -360,19 +407,43 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
                     'tracking_impact': tracking_impact,
                     'loss_per_tracking_unit': loss_per_tracking_unit
                 })
+            else:
+                if verbose:
+                    print(f"     ❌ BELOW LOT SIZE: Need {lot_size} shares minimum, have {max_shares_available}")
+        else:
+            if verbose:
+                print(f"     ❌ NOT A LOSS: Unrealized gain of ${lot.unrealized_gain_loss:.2f}")
     
     # Sort by loss efficiency (minimize tracking error per unit of loss harvested)
     loss_lots_with_impact.sort(key=lambda x: -x['loss_per_tracking_unit'])
+    
+    if verbose:
+        print(f"\n📊 Loss Lots Ranked by Efficiency:")
+        for i, lot_info in enumerate(loss_lots_with_impact):
+            print(f"   {i+1}. {lot_info['lot'].ticker}: ${lot_info['loss_per_tracking_unit']:,.2f} loss per tracking unit")
+            print(f"      Loss: ${lot_info['realized_loss']:,.2f}, Tracking Impact: {lot_info['tracking_impact']:+.6f}")
     
     # Select lots to sell within constraints
     actions = []
     selected_sales = []
     current_sell_value = 0.0
     
+    if verbose:
+        print(f"\n🎯 Selecting Sales (Max Sell Value: ${max_sell_value:,.2f}):")
+    
     # Select optimal sales with partial sale capability
     for lot_info in loss_lots_with_impact:
+        lot_ticker = lot_info['lot'].ticker
+        if verbose:
+            print(f"\n   Evaluating {lot_ticker}:")
+            print(f"     Full Sale Proceeds: ${lot_info['proceeds']:,.2f}")
+            print(f"     Current Sell Value: ${current_sell_value:,.2f}")
+            print(f"     Remaining Capacity: ${max_sell_value - current_sell_value:,.2f}")
+        
         if current_sell_value + lot_info['proceeds'] <= max_sell_value:
             # Full sale fits within limit
+            if verbose:
+                print(f"     ✅ FULL SALE SELECTED")
             selected_sales.append(lot_info)
             current_sell_value += lot_info['proceeds']
         elif current_sell_value < max_sell_value:
@@ -380,10 +451,18 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
             remaining_sell_capacity = max_sell_value - current_sell_value
             max_shares_by_value = remaining_sell_capacity / lot_info['lot'].current_price
             
+            if verbose:
+                print(f"     🔄 Checking Partial Sale:")
+                print(f"       Max Shares by Value: {max_shares_by_value:.2f}")
+                print(f"       Lot Size Requirement: {lot_size}")
+            
             if max_shares_by_value >= lot_size:
                 # Calculate partial sale
                 partial_shares = int(max_shares_by_value // lot_size) * lot_size
                 partial_proceeds = partial_shares * lot_info['lot'].current_price
+                
+                if verbose:
+                    print(f"       ✅ PARTIAL SALE SELECTED: {partial_shares} shares for ${partial_proceeds:,.2f}")
                 
                 # Create modified lot_info for partial sale
                 partial_lot_info = lot_info.copy()
@@ -393,6 +472,19 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
                 
                 selected_sales.append(partial_lot_info)
                 current_sell_value += partial_proceeds
+            else:
+                if verbose:
+                    print(f"       ❌ PARTIAL SALE REJECTED: Below lot size threshold")
+        else:
+            if verbose:
+                print(f"     ❌ REJECTED: Sell limit already reached")
+    
+    if verbose:
+        print(f"\n📋 Final Selected Sales:")
+        print(f"   Total Selected Lots: {len(selected_sales)}")
+        print(f"   Total Sell Value: ${current_sell_value:,.2f}")
+        for sale in selected_sales:
+            print(f"   - {sale['lot'].ticker}: {sale['shares_to_sell']} shares for ${sale['proceeds']:,.2f} (${sale['realized_loss']:,.2f} loss)")
     
     # Create actions for all lots
     for lot_index, lot in enumerate(tax_lots):
@@ -454,7 +546,8 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
 def tax_loss_harvest(tax_lots: List[Dict[str, Any]],
                     index_name: Optional[str] = None,
                     lot_size: float = 1.0,
-                    max_sell_percentage: float = 100.0) -> Dict[str, Any]:
+                    max_sell_percentage: float = 100.0,
+                    verbose: bool = False) -> Dict[str, Any]:
     """
     Core tax loss harvesting function with automatic strategy selection.
     
@@ -467,6 +560,7 @@ def tax_loss_harvest(tax_lots: List[Dict[str, Any]],
         index_name: Optional target index name for tracking error minimization
         lot_size: Minimum trading lot size in shares
         max_sell_percentage: Maximum percentage of portfolio value to sell
+        verbose: Enable detailed logging for debugging (index-optimized strategy only)
         
     Returns:
         Dictionary containing TLH analysis results
@@ -478,7 +572,7 @@ def tax_loss_harvest(tax_lots: List[Dict[str, Any]],
         # Select strategy based on index_name parameter
         if index_name:
             result = _tax_loss_harvest_index_optimized(
-                validated_lots, index_name, lot_size, max_sell_percentage
+                validated_lots, index_name, lot_size, max_sell_percentage, verbose
             )
         else:
             result = _tax_loss_harvest_fifo(
