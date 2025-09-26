@@ -416,11 +416,11 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
                 if verbose:
                     print(f"     🔄 ATTEMPTING PARTIAL SALE")
                 
-                # Find maximum shares where deviation <= tolerance
-                # |newWeight - targetWeight| <= tolerance/100
-                # |currentWeight - (sharesToSell * price / totalValue) - targetWeight| <= tolerance/100
-                max_allowed_deviation = allocation_tolerance / 100.0
-                max_weight_reduction = abs(current_weight - target_weight) - max_allowed_deviation
+                # Calculate minimum allowed weight and maximum weight reduction
+                # Example: Current=40%, Target=20%, Tolerance=5% -> Min=15%, MaxReduction=25%
+                tolerance_decimal = allocation_tolerance / 100.0
+                min_allowed_weight = target_weight - tolerance_decimal
+                max_weight_reduction = max(0.0, current_weight - min_allowed_weight)
                 
                 if max_weight_reduction > 0:
                     max_sellable_value = max_weight_reduction * total_portfolio_value
@@ -508,6 +508,13 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
         max_final_deviation = max(max_final_deviation, deviation)
     
     if verbose:
+        print(f"\n📈 Final Weights:")
+        for ticker in set(list(updatedWeights.keys()) + list(indexWeights.keys())):
+            final_weight = updatedWeights.get(ticker, 0.0)
+            target_weight = indexWeights.get(ticker, 0.0)
+            print(f"   {ticker}: Current {final_weight:.1%}, Target {target_weight:.1%}")
+        print(f"   Sales Proceeds: ${total_proceeds:,.2f}")
+        
         print(f"\n📋 Final Results:")
         print(f"   Total Realized Losses: ${total_realized_losses:,.2f}")
         print(f"   Total Proceeds: ${total_proceeds:,.2f}")

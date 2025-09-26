@@ -95,7 +95,7 @@ class TestMinimalTLH(unittest.TestCase):
             tax_lots=input_tax_lots,
             index_name="Index3", 
             lot_size=1.0,
-            allocation_tolerance=10.0,  
+            allocation_tolerance=5.0,  
             verbose=True
         )
         
@@ -114,7 +114,7 @@ class TestMinimalTLH(unittest.TestCase):
                 'ticker': 'XYZ',
                 'lot_index': 1,
                 'action': 'SELL',
-                'shares_to_sell': 60.0
+                'shares_to_sell': 70.0
             }
         ]
 
