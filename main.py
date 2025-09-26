@@ -14,7 +14,6 @@ from langgraph.graph import StateGraph, END
 import os
 from dotenv import load_dotenv
 from portfolio_tools import get_portfolio_tools
-from portfolio_tools_pydantic import pydantic_rebalance_portfolio
 from langchain_core.callbacks import BaseCallbackHandler
 
 # Load environment variables from .env file
@@ -147,7 +146,7 @@ def create_react_agent_demo():
         
     # Create list of tools - include both demo tools and portfolio tools
     portfolio_tools = get_portfolio_tools()
-    tools = [calculator, word_counter, temperature_converter] + [pydantic_rebalance_portfolio]
+    tools = [calculator, word_counter, temperature_converter] + portfolio_tools
     
     # Create the ReAct agent using LangGraph's prebuilt function
     agent_executor = create_react_agent(llm, tools, debug = False)
@@ -197,6 +196,18 @@ def run_demo_queries(agent_executor):
                       
                       ''']
     
+    demo_questions = ['''I need tax loss harvesting analysis using FIFO strategy for my portfolio. I have these tax lots:
+- AAPL: 50 shares bought on 2023-01-15 at $150 per share
+- TSLA: 500 shares bought on 2023-02-10 at $300 per share
+
+Please analyze using lot size of 1 share and limit sales to maximum 50% of portfolio value. Use FIFO strategy (no index targeting).''']
+    
+    demo_questions_1 = ['''Perform tax loss harvesting analysis for my portfolio using index3 allocation strategy with these positions:
+- ABC: 100 shares purchased 2023-01-15 at $80 per share  
+- XYZ: 100 shares purchased 2023-02-10 at $120 per share
+
+Use lot size of 1 share with 5% allocation tolerance. Target index3 weights.''']
+
     print("🤖 LangGraph ReAct Agent Demo\n" + "="*50)
     
     for i, question in enumerate(demo_questions, 1):
@@ -206,7 +217,7 @@ def run_demo_queries(agent_executor):
         try:
             # Invoke the agent with the question
             response = agent_executor.invoke({"messages": [("user", question), 
-                                                           ("user", "write a quanltative summary of the impact of the action based on company profiles")
+                                                          # ("user", "write a quanltative summary of the impact of the action based on company profiles")
                                                            ]})
             #, ("system", "If the user does not provide an index name ask them to provide one.")
             
