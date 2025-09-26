@@ -8,6 +8,7 @@ import pandas as pd
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date
 from dataclasses import dataclass
+from langchain_core.tools import tool
 from portfolio_tools import INDEX_WEIGHTS, STOCK_PRICES
 
 
@@ -143,16 +144,16 @@ def validate_tax_lots(tax_lots: List[Dict[str, Any]]) -> List[TaxLot]:
 
 
 
-def _tax_loss_harvest_fifo(tax_lots: List[TaxLot], 
-                         lot_size: float = 1.0,
-                         max_sell_percentage: float = 100.0) -> TLHResult:
+def _tax_loss_harvest_fifo(tax_lots: List[TaxLot],
+                          lot_size: float = 1.0,
+                          max_sell_percentage: float = 100.0) -> TLHResult:
     """
     Perform tax loss harvesting using FIFO (First In, First Out) strategy.
     
     Args:
         tax_lots: List of TaxLot objects
         lot_size: Minimum trading lot size in shares
-        max_sell_percentage: Maximum percentage of portfolio to sell
+        max_sell_percentage: Maximum percentage of each ticker's total shares to sell
         
     Returns:
         TLHResult object with harvesting analysis
@@ -166,20 +167,36 @@ def _tax_loss_harvest_fifo(tax_lots: List[TaxLot],
     if not (0 < max_sell_percentage <= 100):
         raise ValueError("max_sell_percentage must be between 0 and 100")
     
-    # Calculate total portfolio value
+    # Calculate total portfolio value and per-ticker share totals
     total_portfolio_value = sum(lot.current_value for lot in tax_lots)
-    max_sell_value = total_portfolio_value * (max_sell_percentage / 100.0)
+    ticker_share_totals = {}
+    for lot in tax_lots:
+        if lot.ticker not in ticker_share_totals:
+            ticker_share_totals[lot.ticker] = 0.0
+        ticker_share_totals[lot.ticker] += lot.shares
+    
+    # Calculate max sellable shares per ticker
+    ticker_max_sell_shares = {}
+    for ticker, total_shares in ticker_share_totals.items():
+        ticker_max_sell_shares[ticker] = total_shares * (max_sell_percentage / 100.0)
     
     # Sort lots by purchase date (FIFO)
     sorted_lots = sorted(tax_lots, key=lambda x: x.purchase_date)
     
     actions = []
     total_proceeds = 0.0
-    current_sell_value = 0.0
+    ticker_shares_sold = {}  # Track shares sold per ticker
+    
+    # Initialize ticker tracking
+    for ticker in ticker_share_totals:
+        ticker_shares_sold[ticker] = 0.0
     
     for lot_index, lot in enumerate(sorted_lots):
-        if current_sell_value >= max_sell_value:
-            # Add HOLD action for remaining lots
+        # Check if we've reached the max sell limit for this ticker
+        remaining_sell_capacity = ticker_max_sell_shares[lot.ticker] - ticker_shares_sold[lot.ticker]
+        
+        if remaining_sell_capacity <= 0:
+            # Already hit max sell limit for this ticker
             actions.append(TLHAction(
                 ticker=lot.ticker,
                 action="HOLD",
@@ -193,10 +210,8 @@ def _tax_loss_harvest_fifo(tax_lots: List[TaxLot],
             continue
         
         if lot.is_loss():
-            # Calculate maximum shares we can sell within constraints
-            remaining_sell_capacity = max_sell_value - current_sell_value
-            max_shares_by_value = remaining_sell_capacity / lot.current_price
-            max_shares_available = min(lot.shares, max_shares_by_value)
+            # Calculate maximum shares we can sell within ticker limit
+            max_shares_available = min(lot.shares, remaining_sell_capacity)
             
             # Apply lot size constraints
             if max_shares_available >= lot_size:
@@ -218,7 +233,7 @@ def _tax_loss_harvest_fifo(tax_lots: List[TaxLot],
                     ))
                     
                     total_proceeds += proceeds
-                    current_sell_value += proceeds
+                    ticker_shares_sold[lot.ticker] += shares_to_sell
                 else:
                     # Below lot size threshold
                     actions.append(TLHAction(
@@ -259,7 +274,7 @@ def _tax_loss_harvest_fifo(tax_lots: List[TaxLot],
     # Calculate summary metrics
     total_realized_losses = sum(action.realized_loss for action in actions if action.action == "SELL")
     total_shares_sold = sum(action.shares_to_sell for action in actions if action.action == "SELL")
-    portfolio_impact_percentage = (current_sell_value / total_portfolio_value) * 100
+    portfolio_impact_percentage = (total_proceeds / total_portfolio_value) * 100
     
     return TLHResult(
         total_portfolio_value=total_portfolio_value,
@@ -536,6 +551,7 @@ def _tax_loss_harvest_index_optimized(tax_lots: List[TaxLot],
     )
 
 
+@tool
 def tax_loss_harvest(tax_lots: List[Dict[str, Any]],
                     index_name: Optional[str] = None,
                     lot_size: float = 1.0,
@@ -543,22 +559,146 @@ def tax_loss_harvest(tax_lots: List[Dict[str, Any]],
                     allocation_tolerance: Optional[float] = None,
                     verbose: bool = False) -> Dict[str, Any]:
     """
-    Core tax loss harvesting function with automatic strategy selection.
+    Analyze tax lot positions for tax loss harvesting opportunities using FIFO or index-optimized strategies.
+    
+    This function performs comprehensive tax loss harvesting analysis on a portfolio of tax lots,
+    automatically selecting between FIFO (First In, First Out) and index-optimized strategies based
+    on whether an index target is specified. It identifies loss positions and recommends sales while
+    respecting lot size constraints and portfolio allocation limits.
     
     Args:
-        tax_lots: List of tax lot dictionaries with keys:
-            - ticker: Stock symbol
-            - shares: Number of shares
-            - cost_basis: Cost per share
-            - purchase_date: Purchase date (YYYY-MM-DD string or date object)
-        index_name: Optional target index name for allocation optimization
-        lot_size: Minimum trading lot size in shares
-        max_sell_percentage: Maximum percentage of portfolio to sell (FIFO strategy only)
-        allocation_tolerance: Maximum allowed percentage deviation from target weights per ticker (index-optimized strategy only)
-        verbose: Enable detailed logging for debugging
-        
+        tax_lots (List[Dict[str, Any]]): List of tax lot dictionaries representing individual security positions.
+            Each tax lot dictionary must contain:
+            - ticker (str): Stock ticker symbol (e.g., "AAPL", "GOOGL")
+            - shares (float): Number of shares in the tax lot (must be > 0)
+            - cost_basis (float): Original cost per share when purchased (must be > 0)
+            - purchase_date (str|date): Purchase date in "YYYY-MM-DD" format or date object
+            
+            Example: [
+                {"ticker": "AAPL", "shares": 100.0, "cost_basis": 150.0, "purchase_date": "2023-01-15"},
+                {"ticker": "TSLA", "shares": 50.0, "cost_basis": 300.0, "purchase_date": "2023-02-10"}
+            ]
+            
+        index_name (Optional[str]): Target index name for index-optimized strategy.
+            - If provided: Uses index-optimized strategy with allocation tolerance constraints
+            - If None: Uses FIFO strategy with max sell percentage constraints
+            - Valid values: "index1", "index2", "index3" (case-insensitive)
+            - "index1": 5-stock tech portfolio (AAPL, GOOGL, MSFT, AMZN, TSLA)
+            - "index2": 10-stock diversified tech portfolio
+            - "index3": 5-stock balanced portfolio (ABC, XYZ, PQR, LMN, EFG)
+            
+        lot_size (float): Minimum trading lot size in shares per transaction.
+            - Must be > 0.0
+            - Default: 1.0 (no lot size constraint)
+            - Example: 10.0 means sales must be in multiples of 10 shares
+            - Sales below lot_size threshold will result in "HOLD" action
+            
+        max_sell_percentage (Optional[float]): Maximum percentage of total portfolio value to sell (FIFO strategy only).
+            - Used only when index_name is None (FIFO strategy)
+            - Must be between 0 and 100
+            - Default: 100.0 (no limit)
+            - Example: 50.0 means maximum 50% of portfolio value can be sold
+            
+        allocation_tolerance (Optional[float]): Maximum allowed percentage point deviation from target weights (index-optimized strategy only).
+            - Used only when index_name is provided (index-optimized strategy)
+            - Must be between 0 and 100
+            - Default: 5.0 (5 percentage point tolerance)
+            - Example: 5.0 means position can deviate ±5% from target weight
+            - Controls how aggressively lots are sold while maintaining index tracking
+            
+        verbose (bool): Enable detailed logging output for debugging and analysis.
+            - Default: False
+            - When True: Prints detailed weight calculations, sale decisions, and final allocation analysis
+            
     Returns:
-        Dictionary containing TLH analysis results
+        Dict[str, Any]: Comprehensive tax loss harvesting analysis with the following structure:
+        
+        {
+            "strategy": str,                         # "fifo" or "index_optimized"
+            "total_portfolio_value": float,          # Total market value of all tax lots
+            "lot_size": float,                      # Lot size used for calculations
+            "max_sell_percentage": float,           # Max sell limit used (FIFO) or allocation_tolerance (index-optimized)
+            "index_name": Optional[str],            # Target index name (None for FIFO)
+            "total_realized_losses": float,         # Total realized losses from all sales (negative number)
+            "total_proceeds": float,                # Total proceeds from all sales
+            "total_shares_sold": float,             # Total number of shares sold across all lots
+            "number_of_sales": int,                 # Count of actual sale transactions
+            "portfolio_impact_percentage": float,   # Percentage of portfolio affected by sales
+            "tracking_error_impact": Optional[float], # Final tracking error vs target index (index-optimized only)
+            
+            "actions": List[Dict[str, Any]]         # Detailed action recommendations for each tax lot
+            # Each action dictionary contains:
+            # {
+            #     "ticker": str,                    # Stock symbol
+            #     "action": str,                    # "SELL" or "HOLD"
+            #     "lot_index": int,                 # Index of lot in original tax_lots list
+            #     "shares_to_sell": float,          # Number of shares to sell (0 if HOLD)
+            #     "cost_basis": float,              # Original cost per share
+            #     "current_price": float,           # Current market price per share
+            #     "realized_loss": float,           # Realized loss from sale (0 if HOLD)
+            #     "purchase_date": str,             # Purchase date in ISO format
+            #     "proceeds": float,                # Sale proceeds (shares_to_sell * current_price)
+            #     "total_cost_basis": float         # Total cost basis of shares sold
+            # }
+        }
+        
+        Error Response (if invalid inputs):
+        {
+            "error": str,                           # Error description
+            "strategy": "error",                    # Indicates error state
+            # ... other fields set to default values
+        }
+    
+    Strategy Selection Logic:
+        - If index_name is provided → Index-Optimized Strategy
+            * Prioritizes maintaining target index allocation within tolerance
+            * Uses allocation_tolerance to control maximum deviation per ticker
+            * Attempts partial sales to stay within tolerance bounds
+            * Suitable for index-tracking portfolios
+            
+        - If index_name is None → FIFO Strategy
+            * Sells loss lots in chronological order (oldest first)
+            * Uses max_sell_percentage to limit total portfolio impact
+            * Simpler strategy focused purely on loss harvesting
+            * Suitable for non-index portfolios
+    
+    Example Usage:
+        >>> # FIFO Strategy Example
+        >>> tax_lots = [
+        ...     {"ticker": "AAPL", "shares": 100, "cost_basis": 200.0, "purchase_date": "2023-01-15"},
+        ...     {"ticker": "TSLA", "shares": 50, "cost_basis": 300.0, "purchase_date": "2023-02-10"}
+        ... ]
+        >>> result = tax_loss_harvest(tax_lots, lot_size=10.0, max_sell_percentage=50.0)
+        >>> print(f"Realized losses: ${result['total_realized_losses']:,.2f}")
+        >>> print(f"Sales executed: {result['number_of_sales']}")
+        
+        >>> # Index-Optimized Strategy Example
+        >>> result = tax_loss_harvest(tax_lots, index_name="index1", allocation_tolerance=3.0)
+        >>> print(f"Strategy: {result['strategy']}")
+        >>> print(f"Tracking error: {result['tracking_error_impact']:.2f}%")
+        >>> for action in result['actions']:
+        ...     if action['action'] == 'SELL':
+        ...         print(f"Sell {action['shares_to_sell']} shares of {action['ticker']}")
+    
+    Raises:
+        ValueError: If invalid input parameters are provided:
+            - Empty tax_lots list
+            - Invalid ticker symbols or missing price data
+            - Invalid lot_size (must be > 0)
+            - Invalid percentage values (must be 0-100)
+            - Invalid index_name (must be valid index key)
+            - Missing or invalid required fields in tax lot dictionaries
+            
+    Notes:
+        - Current stock prices are sourced from hardcoded STOCK_PRICES dictionary in portfolio_tools
+        - Index target weights are defined in INDEX_WEIGHTS dictionary in portfolio_tools
+        - Tax lots with unrealized gains are automatically held (no sales)
+        - Partial lot sales respect lot_size constraints (rounded down to nearest multiple)
+        - Function returns structured data suitable for programmatic processing
+        - All monetary values are in USD
+        - Purchase dates are converted to ISO format in output
+        - Strategy automatically adapts based on presence of index_name parameter
+        - Verbose output provides detailed decision-making transparency for analysis
     """
     try:
         # Validate and convert tax lots
@@ -700,11 +840,20 @@ if __name__ == "__main__":
     
     # Test 1: FIFO-based TLH
     print("1. Testing FIFO Tax Loss Harvesting:")
-    fifo_result = tax_loss_harvest(test_tax_lots, lot_size=10.0, max_sell_percentage=50.0)
+    fifo_result = tax_loss_harvest.invoke({
+        "tax_lots": test_tax_lots,
+        "lot_size": 10.0,
+        "max_sell_percentage": 50.0
+    })
     print(format_tlh_summary(fifo_result))
     print()
     
     # Test 2: Index-optimized TLH
     print("2. Testing Index-Optimized Tax Loss Harvesting:")
-    index_result = tax_loss_harvest(test_tax_lots, index_name="index1", lot_size=10.0, max_sell_percentage=50.0)
+    index_result = tax_loss_harvest.invoke({
+        "tax_lots": test_tax_lots,
+        "index_name": "index1",
+        "lot_size": 10.0,
+        "max_sell_percentage": 50.0
+    })
     print(format_tlh_summary(index_result))
