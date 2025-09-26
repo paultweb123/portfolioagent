@@ -484,7 +484,8 @@ def rebalance_portfolio(holdings: Dict[str, float], index_name: str, lot_size: f
 # Helper function to get all available tools
 def get_portfolio_tools():
     """Return list of all portfolio tools for integration with ReAct agent."""
-    return [get_index_weights, get_prices, rebalance_portfolio]
+    from portfolio_tlh import tax_loss_harvest
+    return [get_index_weights, get_prices, rebalance_portfolio, tax_loss_harvest]
 
 if __name__ == "__main__":
     # Quick test of the tools
