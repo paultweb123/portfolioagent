@@ -77,15 +77,15 @@ class TestMinimalTLH(unittest.TestCase):
         # Two tax lots: one profitable, one at significant loss that should be harvested
         input_tax_lots = [
             {
-                "ticker": "AAPL",
-                "shares": 50.0,  # Smaller position
-                "cost_basis": 150.0,  # Profit: current $185 vs cost $150 = $35/share profit
+                "ticker": "ABC",
+                "shares": 100.0,  
+                "cost_basis": 80.0,  
                 "purchase_date": "2023-01-15"
             },
             {
-                "ticker": "TSLA",
-                "shares": 5.0,  # Large loss position
-                "cost_basis": 300.0,  # Big Loss: current $220 vs cost $300 = $80/share loss
+                "ticker": "XYZ",
+                "shares": 100,  
+                "cost_basis": 120.0,  
                 "purchase_date": "2023-02-10"
             }
         ]
@@ -93,9 +93,10 @@ class TestMinimalTLH(unittest.TestCase):
         
         result = tax_loss_harvest(
             tax_lots=input_tax_lots,
-            index_name="Index1",  # Use FIFO strategy for predictable loss harvesting
+            index_name="Index3", 
             lot_size=1.0,
-            max_sell_percentage=50.0  # Max 25% of portfolio
+            allocation_tolerance=10.0,  
+            verbose=True
         )
         
       
@@ -104,16 +105,16 @@ class TestMinimalTLH(unittest.TestCase):
       
         reference_result = [
             {
-                'ticker': 'AAPL',
+                'ticker': 'ABC',
                 'lot_index': 0,
                 'action': 'HOLD',
                 'shares_to_sell': 0.0
             },
             {
-                'ticker': 'TSLA',
+                'ticker': 'XYZ',
                 'lot_index': 1,
                 'action': 'SELL',
-                'shares_to_sell': 5.0
+                'shares_to_sell': 60.0
             }
         ]
 
@@ -126,6 +127,10 @@ class TestMinimalTLH(unittest.TestCase):
                 }
                 for action in result['actions']
             ]
+        from pprint import pformat
+        print("reference_result\n", pformat(reference_result))
+        print("extracted_actions\n", pformat(extracted_actions))
+        
         
         self.assertEqual(reference_result, extracted_actions)
 

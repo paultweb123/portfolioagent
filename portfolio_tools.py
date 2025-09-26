@@ -154,7 +154,15 @@ INDEX_WEIGHTS = {
         "NFLX": 0.08,    # 8%
         "ADBE": 0.09,    # 9%
         "CRM": 0.08      # 8%
-    }
+    },
+    "index3": {
+        "ABC": 0.2, 
+        "XYZ": 0.2,  
+        "PQR": 0.2,  
+        "LMN": 0.2,    
+        "EFG": 0.2     
+    },
+
 }
 
 # Hardcoded Stock Prices
@@ -168,7 +176,12 @@ STOCK_PRICES = {
     "META": 315.00,
     "NFLX": 425.00,
     "ADBE": 520.00,
-    "CRM": 185.00
+    "CRM": 185.00,
+    "ABC": 100.00,
+    "XYZ": 100.00,
+    "PQR": 100.00,
+    "LMN": 100.00,
+    "EFG": 100.00
 }
 
 @tool
