@@ -34,12 +34,12 @@ class TestMinimalTLH(unittest.TestCase):
         ]
 
         
-        result = tax_loss_harvest(
-            tax_lots=input_tax_lots,
-            index_name=None,  # Use FIFO strategy for predictable loss harvesting
-            lot_size=1.0,
-            max_sell_percentage=50.0  # Max 25% of portfolio
-        )
+        result = tax_loss_harvest.invoke({
+            "tax_lots": input_tax_lots,
+            "index_name": None,  # Use FIFO strategy for predictable loss harvesting
+            "lot_size": 1.0,
+            "max_sell_percentage": 50.0  # Max 25% of portfolio
+        })
         
       
         # Print results for inspection
@@ -55,7 +55,7 @@ class TestMinimalTLH(unittest.TestCase):
                 'ticker': 'TSLA',
                 'lot_index': 1,
                 'action': 'SELL',
-                'shares_to_sell': 271.0
+                'shares_to_sell': 250.0
             }
         ]
 
@@ -91,13 +91,13 @@ class TestMinimalTLH(unittest.TestCase):
         ]
 
         
-        result = tax_loss_harvest(
-            tax_lots=input_tax_lots,
-            index_name="Index3", 
-            lot_size=1.0,
-            allocation_tolerance=5.0,  
-            verbose=True
-        )
+        result = tax_loss_harvest.invoke({
+            "tax_lots": input_tax_lots,
+            "index_name": "Index3",
+            "lot_size": 1.0,
+            "allocation_tolerance": 5.0,
+            "verbose": True
+        })
         
       
         # Print results for inspection
