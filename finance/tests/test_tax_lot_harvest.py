@@ -5,7 +5,7 @@ Tests input tax lots vs harvesting output - ultra-minimal version
 """
 
 import unittest
-from portfolio_tlh import (
+from finance.tools.tax_lot_harvest import (
     tax_loss_harvest,
     format_tlh_summary
 )

@@ -5,7 +5,8 @@ Tests input dictionary vs current holdings output
 """
 
 import unittest
-from portfolio_tools import (
+
+from finance.tools.rebalance import (
     rebalance_portfolio,
     format_rebalancing_summary
 )

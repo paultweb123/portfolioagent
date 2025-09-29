@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, date
 from dataclasses import dataclass
 from langchain_core.tools import tool
-from portfolio_tools import INDEX_WEIGHTS, STOCK_PRICES
+from finance.tools.portfolio_data import INDEX_WEIGHTS, STOCK_PRICES
 
 
 @dataclass
