@@ -13,11 +13,8 @@ from a2a.server.tasks import (
     InMemoryPushNotificationConfigStore,
     InMemoryTaskStore,
 )
-from a2a.types import (
-    AgentCapabilities,
-    AgentCard,
-    AgentSkill,
-)
+from a2a.types import AgentCapabilities
+    
 from dotenv import load_dotenv
 
 from langchainagent.agent import LangchainReactAgent
@@ -93,3 +90,85 @@ def create_agent_server(config: AgentConfiguration, host: str = 'localhost', por
         logger.error(f'An error occurred during server startup: {e}')
         sys.exit(1)
 
+
+
+
+def run_agent_server(config_class, agent_description: str = "Agent", emoji: str = "🤖"):
+    """
+    Generic CLI server runner for any domain configuration.
+    
+    This function provides a complete CLI interface with logging, validation,
+    startup banners, and error handling for any agent configuration.
+    
+    Args:
+        config_class: AgentConfiguration class (not instance) for the domain
+        agent_description: Description for CLI help and startup banner
+        emoji: Emoji to display in startup banner
+    
+    Usage:
+        from langchainagent.server import run_agent_server
+        from your_domain.config import YourAgentConfig
+        
+        run_agent_server(YourAgentConfig, "Your Domain Agent", "🎯")
+    """
+    @click.command()
+    @click.option('--host', default='localhost', help='Server host address')
+    @click.option('--port', default=10000, type=int, help='Server port number')
+    @click.option('--verbose', is_flag=True, help='Enable verbose logging')
+    def main(host: str, port: int, verbose: bool):
+        f"""Launch {agent_description} Server"""
+        
+        # Setup logging
+        if verbose:
+            logging.basicConfig(level=logging.DEBUG)
+            print("🔧 Verbose logging enabled")
+        else:
+            logging.basicConfig(level=logging.INFO)
+        
+        try:
+            print(f"{emoji} {agent_description} Server")
+            print("=" * 50)
+            
+            # Create domain configuration
+            config = config_class()
+            print(f"📊 Domain: {config.domain_name}")
+            
+            # Validate environment before starting
+            print("🔍 Validating environment...")
+            config.validate_environment()
+            print("✅ Environment validation passed")
+            
+            # Show configuration details
+            tools = config.get_tools()
+            agent_card = config.get_agent_card(host, port)
+            
+            print(f"🏷️  Agent: {agent_card.name} v{agent_card.version}")
+            print(f"📋 Skills: {len(agent_card.skills)} available")
+            for skill in agent_card.skills:
+                print(f"   - {skill.name}")
+            print(f"🔧 Tools: {len(tools)} loaded")
+            print(f"🌐 Server: http://{host}:{port}")
+            
+            print("\n" + "=" * 50)
+            print("🚀 Starting server...")
+            
+            # Start the server using generic framework
+            create_agent_server(config, host, port)
+            
+        except ValueError as e:
+            print(f"❌ Configuration Error: {e}")
+            print("💡 Check that required environment variables are set in .env file")
+            sys.exit(1)
+        except ImportError as e:
+            print(f"❌ Import Error: {e}")
+            print("💡 Check that required dependencies are installed")
+            sys.exit(1)
+        except Exception as e:
+            print(f"❌ Failed to start server: {e}")
+            import traceback
+            if verbose:
+                traceback.print_exc()
+            sys.exit(1)
+    
+    # Execute the CLI
+    main()
