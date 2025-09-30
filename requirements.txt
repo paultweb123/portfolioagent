@@ -1,0 +1,46 @@
+# Core dependencies
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# LangChain ecosystem
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-openai>=0.1.0
+langchain-anthropic>=0.1.0
+langgraph>=0.1.0
+langchain-google-genai==2.1.12
+
+
+google-ai-generativelanguage==0.7.0
+
+
+# Web framework for the demo interface
+flask>=2.3.0
+flask-cors>=4.0.0
+
+# Additional utilities
+requests>=2.31.0
+
+# A2A Agent Framework - CRITICAL for server
+a2a==0.44
+a2a-sdk==0.3.7
+
+# Server dependencies
+click>=8.0.0
+httpx>=0.28.0
+uvicorn[standard]>=0.35.0
+fastapi>=0.104.0
+starlette>=0.27.0
+sse-starlette==2.3.6
+
+# AI/ML dependencies
+anthropic>=0.68.0
+openai>=1.99.0
+
+# Data handling
+numpy>=2.3.0
+pandas>=2.3.0
+
+# Additional server utilities
+pydantic-settings>=2.10.0
+tenacity>=9.1.0

@@ -48,10 +48,15 @@ class PortfolioAgentConfig:
         """Return the agent card for portfolio management"""
         capabilities = AgentCapabilities(streaming=True, push_notifications=True)
         
+        # Convert 0.0.0.0 to localhost for client connections
+        client_host = 'localhost' if host == '0.0.0.0' else host
+
+        print(f"Creating agent card with host: {client_host}, port: {port}")
+        
         return AgentCard(
             name='Portfolio Management Agent',
             description='Comprehensive portfolio management with advanced analytics and tax-optimized strategies',
-            url=f'http://{host}:{port}/',
+            url=f'http://{client_host}:{port}/',
             version='2.0.0',
             default_input_modes=LangchainReactAgent.SUPPORTED_CONTENT_TYPES,
             default_output_modes=LangchainReactAgent.SUPPORTED_CONTENT_TYPES,

@@ -52,10 +52,6 @@ def create_agent_server(config: AgentConfiguration, host: str = 'localhost', por
         # Create server components
         capabilities = AgentCapabilities(streaming=True, push_notifications=True)
         
-        # AgentCard from config already has the necessary details
-        # Just ensure it has the correct URL
-        if hasattr(agent_card, 'url'):
-            agent_card.url = f'http://{host}:{port}/'
 
         # Create server infrastructure
         httpx_client = httpx.AsyncClient()

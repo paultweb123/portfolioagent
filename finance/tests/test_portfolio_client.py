@@ -25,7 +25,7 @@ async def main() -> None:
 
     # --8<-- [start:A2ACardResolver]
 
-    base_url = 'http://localhost:10000'
+    base_url = 'http://localhost:8080'
 
     async with httpx.AsyncClient() as httpx_client:
         # Initialize A2ACardResolver
