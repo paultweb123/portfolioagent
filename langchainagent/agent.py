@@ -12,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel
+from langchain_anthropic import ChatAnthropic  
 
 memory = MemorySaver()
 
@@ -42,15 +43,27 @@ class LangchainReactAgent:
 
     def __init__(self, tools):
         model_source = os.getenv('model_source', 'google')
+        
         if model_source == 'google':
+            print("⭐Initializing Google Gemini model...")
             self.model = ChatGoogleGenerativeAI(model='gemini-2.0-flash')
-        else:
-            self.model = ChatOpenAI(
-                model=os.getenv('TOOL_LLM_NAME'),
-                openai_api_key=os.getenv('API_KEY', 'EMPTY'),
-                openai_api_base=os.getenv('TOOL_LLM_URL'),
-                temperature=0,
+        elif model_source == 'anthropic':
+            print("⭐Initializing Anthropic Claude model...")
+            self.model =    ChatAnthropic(
+                model = "claude-3-5-haiku-latest",                # Claude model to use
+                temperature=0,                   # deterministic output
+                max_retries=2,                   # retry transient errors
+                anthropic_api_key=os.getenv("ANTHROPIC_API_KEY")  # correct named parameter
             )
+        elif model_source == 'openai':
+            print("⭐Initializing OpenAI GPT model...")
+            self.model = ChatOpenAI(
+                model="gpt-3.5-turbo",
+                temperature=0,               
+            )
+
+        else:
+            raise ValueError(f'Unsupported model source: {model_source}')
         
         self.tools = tools
 

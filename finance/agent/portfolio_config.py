@@ -5,7 +5,7 @@ This module implements the AgentConfiguration protocol for portfolio management,
 providing all portfolio-specific skills, tools, and agent card information.
 """
 
-import os
+
 from typing import List
 from langchain_core.tools import BaseTool
 from a2a.types import AgentCard, AgentSkill, AgentCapabilities
@@ -13,32 +13,14 @@ from langchainagent.agent_config import AgentConfiguration
 from langchainagent.agent import LangchainReactAgent
 
 
-class PortfolioAgentConfig:
+class PortfolioAgentConfig(AgentConfiguration):
     """Configuration for Portfolio Management Agent"""
     
     @property
     def domain_name(self) -> str:
         return "finance"
     
-    def validate_environment(self) -> None:
-        """Validate domain-specific environment variables and dependencies"""
-        # Check for required API keys
-        if not os.getenv('ANTHROPIC_API_KEY'):
-            if os.getenv('model_source', 'google') == 'google':
-                if not os.getenv('GOOGLE_API_KEY'):
-                    raise ValueError("GOOGLE_API_KEY environment variable required")
-            else:
-                if not os.getenv('TOOL_LLM_URL'):
-                    raise ValueError("TOOL_LLM_URL environment variable required")
-                if not os.getenv('TOOL_LLM_NAME'):
-                    raise ValueError("TOOL_LLM_NAME environment variable required")
-        
-        # Validate portfolio tools availability
-        try:
-            import finance.tools.portfolio_tools
-        except ImportError:
-            raise ImportError("portfolio_tools module is required for portfolio agent")
-    
+
     def get_tools(self) -> List[BaseTool]:
         """Return the LangChain tools for portfolio management"""
         import finance.tools.portfolio_tools as portfolio_tools

@@ -47,6 +47,25 @@ python -m finance.agent.portfolio_server
 python -m finance.tests.test_portfolio_client
 ```
 
+### 4. Docker Deployment
+
+Build and run the portfolio agent server using Docker:
+
+#### Build Docker Image
+```bash
+docker build -t portfolio-a2a-server .
+```
+
+#### Run Server Container
+```bash
+docker run -p 10000:10000 -e GOOGLE_API_KEY=xxxxx -e GEMINI_API_KEY=xxxxx -e model_source=google portfolio-a2a-server
+```
+
+#### Run Client Test
+```bash
+python -m finance.tests.test_portfolio_client
+```
+
 ## Project Structure
 
 ```

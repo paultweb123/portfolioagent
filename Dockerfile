@@ -26,8 +26,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Expose port 8080
-EXPOSE 8080
+EXPOSE 10000
 
 # Set the command to run the portfolio server
-CMD ["python", "finance/agent/portfolio_server.py", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "finance/agent/portfolio_server.py", "--host", "0.0.0.0", "--port", "10000"]
 

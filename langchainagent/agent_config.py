@@ -8,7 +8,7 @@ configurations must implement to work with the generic server framework.
 from typing import Protocol, List
 from langchain_core.tools import BaseTool
 from a2a.types import AgentCard, AgentSkill
-
+import os
 
 class AgentConfiguration(Protocol):
     """
@@ -18,7 +18,7 @@ class AgentConfiguration(Protocol):
     implementations while allowing the generic server to work with any
     domain-specific configuration.
     """
-    
+
     def get_agent_card(self, host: str, port: int) -> AgentCard:
         """
         Return the agent card for this domain.
@@ -42,14 +42,28 @@ class AgentConfiguration(Protocol):
         ...
     
     def validate_environment(self) -> None:
-        """
-        Validate domain-specific environment variables and dependencies.
+        """Validate domain-specific environment variables and dependencies"""
+        # Get model source (default to 'anthropic' if not specified)
+        model_source = os.getenv('model_source', 'google').lower()
+
+        print(f"Validating environment for model source: {model_source}")
         
-        Raises:
-            ValueError: If required environment variables are missing
-            ImportError: If required dependencies are not available
-        """
-        ...
+        # Check for required API keys based on model source
+        if model_source == 'google':
+            if not os.getenv('GOOGLE_API_KEY') and not os.getenv('GEMINI_API_KEY'):
+                raise ValueError("Either GOOGLE_API_KEY or GEMINI_API_KEY environment variable required for Google model source")
+            print("✅ Found Google API key")            
+        elif model_source == 'anthropic':
+            if not os.getenv('ANTHROPIC_API_KEY'):
+                raise ValueError("ANTHROPIC_API_KEY environment variable required for Anthropic model source")
+            print("✅ Found Anthropic API key")
+        elif model_source == 'openai':
+            if not os.getenv('OPENAI_API_KEY'):
+                raise ValueError("OPENAI_API_KEY environment variable required for OpenAI model source")
+            print("✅ Found OpenAI API key")            
+        else:
+            raise ValueError(f"Unsupported model source '{model_source}'. Must be 'google', 'anthropic', or 'openai'")  
+        
     
     @property
     def domain_name(self) -> str:

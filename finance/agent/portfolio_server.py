@@ -10,7 +10,7 @@ Usage:
 
 Examples:
     python finance/agent/portfolio_server.py --port 10000
-    python finance/agent/portfolio_server.py --host 0.0.0.0 --port 8080 --verbose
+    python finance/agent/portfolio_server.py --host 0.0.0.0 --port 10000 --verbose
 """
 
 import sys
