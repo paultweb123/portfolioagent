@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the entire project
 COPY . .
 
-# Expose port 8080
+# Expose port 10000
 EXPOSE 10000
 
 # Set the command to run the portfolio server

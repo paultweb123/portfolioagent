@@ -44,7 +44,7 @@ class LangchainReactAgent:
     def __init__(self, tools):
         model_source = os.getenv('model_source', 'google')
         
-        if model_source == 'google':
+        if model_source in('google', 'gemini'):
             print("⭐Initializing Google Gemini model...")
             self.model = ChatGoogleGenerativeAI(model='gemini-2.0-flash')
         elif model_source == 'anthropic':

@@ -49,7 +49,7 @@ class AgentConfiguration(Protocol):
         print(f"Validating environment for model source: {model_source}")
         
         # Check for required API keys based on model source
-        if model_source == 'google':
+        if model_source in('google', 'gemini'):
             if not os.getenv('GOOGLE_API_KEY') and not os.getenv('GEMINI_API_KEY'):
                 raise ValueError("Either GOOGLE_API_KEY or GEMINI_API_KEY environment variable required for Google model source")
             print("✅ Found Google API key")            
